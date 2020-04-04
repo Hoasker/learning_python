@@ -1,11 +1,11 @@
 def array_search(A:list, N:int, x:int):
     """
-    Осуществляет поиск числа x в массиве a
-    от 0 до N-1 индекса включительно.
-    Возвращает индекс элемента x в массиве A.
-    Или -1, если такого нет.
-    Если в массиве несколько одинаковых элеметов,
-    равных x, то вернуть индекс первого по счёту.
+    Searches for the number x in array A
+    from 0 to N-1 index inclusive.
+    Returns the index of element x in array A.
+    Or -1 if there is none.
+    If there are several identical elements in the array,
+    equal to x, then return the index of the first in a row.
     """
     for k in range(N):
         if A[k] == x:
