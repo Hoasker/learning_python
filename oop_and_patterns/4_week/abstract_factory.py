@@ -1,6 +1,7 @@
 import random
 from abc import ABC
 
+
 class AbstractLevel:
     @classmethod
     def get_map(cls):
@@ -143,13 +144,13 @@ class HardLevel(AbstractLevel):
 
 
 # def main():
-#     def create_level(factory):
-#         return list((factory.get_map(), factory.get_objects()))
+def create_level(factory):
+    return list((factory.get_map(), factory.get_objects()))
 
-#     for factory in [EasyLevel, MediumLevel, HardLevel]:
-#         level = create_level(factory)
-#         # print(level)            
-#         print(level[1].get_objects(level[0].get_map()))
+for factory in [EasyLevel, MediumLevel, HardLevel]:
+    level = create_level(factory)
+    # print(level)            
+    print(level[1].get_objects(level[0].get_map()))
 
 #     hl = HardLevel()
 #     hl.get_objects
