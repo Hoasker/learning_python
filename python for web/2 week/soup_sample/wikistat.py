@@ -1,48 +1,93 @@
-from bs4 import BeautifulSoup
-import re
 import os
+import re
+
+from bs4 import BeautifulSoup
 
 
-# Вспомогательная функция, её наличие не обязательно и не будет проверяться
-def build_tree(start, end, path):
-    link_re = re.compile(r"(?<=/wiki/)[\w()]+")  # Искать ссылки можно как угодно, не обязательно через re
-    files = dict.fromkeys(os.listdir(path))  # Словарь вида {"filename1": None, "filename2": None, ...}
-    # TODO Проставить всем ключам в files правильного родителя в значение, начиная от start
-    return files
-
-
-# Вспомогательная функция, её наличие не обязательно и не будет проверяться
-def build_bridge(start, end, path):
-    files = build_tree(start, end, path)
-    bridge = []
-    # TODO Добавить нужные страницы в bridge
-    return bridge
-
-
-def parse(start, end, path):
-    """
-    Если не получается найти список страниц bridge, через ссылки на которых можно добраться от start до end, то,
-    по крайней мере, известны сами start и end, и можно распарсить хотя бы их: bridge = [end, start]. Оценка за тест,
-    в этом случае, будет сильно снижена, но на минимальный проходной балл наберется, и тест будет пройден.
-    Чтобы получить максимальный балл, придется искать все страницы. Удачи!
-    """
-
-    bridge = build_bridge(start, end, path)  # Искать список страниц можно как угодно, даже так: bridge = [end, start]
-
-    # Когда есть список страниц, из них нужно вытащить данные и вернуть их
-    out = {}
-    for file in bridge:
-        with open("{}{}".format(path, file)) as data:
-            soup = BeautifulSoup(data, "lxml")
-
+def parse(path_to_file):
+    with open(path_to_file, encoding="utf-8") as file:
+        soup = BeautifulSoup(file, "lxml")
         body = soup.find(id="bodyContent")
 
-        # TODO посчитать реальные значения
-        imgs = 5  # Количество картинок (img) с шириной (width) не меньше 200
-        headers = 10  # Количество заголовков, первая буква текста внутри которого: E, T или C
-        linkslen = 15  # Длина максимальной последовательности ссылок, между которыми нет других тегов
-        lists = 20  # Количество списков, не вложенных в другие списки
+    imgs = len(body.find_all('img', width=lambda x: int(x or 0) > 199))
 
-        out[file] = [imgs, headers, linkslen, lists]
+    headers = sum(1 for tag in body.find_all(
+        ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']) if tag.get_text()[0] in "ETC")
 
-    return out
+    lists = sum(
+        1 for tag in body.find_all(['ol', 'ul']) if not tag.find_parent(['ol', 'ul']))
+
+    linkslen = 0
+
+    for a in body.find_all('a'):
+        current_streak = 1
+
+        for tag in a.find_next_siblings():
+            if tag.name == 'a':
+                current_streak += 1
+            else:
+                break
+
+        linkslen = current_streak if current_streak > linkslen else linkslen
+
+    return [imgs, headers, linkslen, lists]
+
+
+def get_statistics(path, start_page, end_page):
+    """собирает статистику со страниц, возвращает словарь, где ключ - название страницы,
+    значение - список со статистикой страницы"""
+    pages = build_bridge(path, start_page, end_page)
+    statistic = {}
+
+    for page in pages:
+        statistic[page] = parse(os.path.join(path, page))
+
+    return statistic
+
+
+def get_links(path, page):
+    """возвращает множество названий страниц, ссылки на которые содержатся в файле page"""
+
+    with open(os.path.join(path, page), encoding="utf-8") as file:
+        links = set(re.findall(r"(?<=/wiki/)[\w()]+", file.read()))
+        if page in links:
+            links.remove(page)
+    return links
+
+
+def get_backlinks(path, end_page, unchecked_pages, checked_pages, backlinks):
+    """возвращает словарь обратных ссылок (ключ - страница, значение - страница
+    с которой возможен переход по ссылке на страницу, указанную в ключе)"""
+
+    if end_page in checked_pages or not checked_pages:
+        return backlinks
+
+    new_checked_pages = set()
+
+    for checked_page in checked_pages:
+        unchecked_pages.remove(checked_page)
+        linked_pages = get_links(path, checked_page) & unchecked_pages
+
+        for linked_page in linked_pages:
+            backlinks[linked_page] = backlinks.get(linked_page, checked_page)
+            new_checked_pages.add(linked_page)
+
+    checked_pages = new_checked_pages & unchecked_pages
+
+    return get_backlinks(path, end_page, unchecked_pages, checked_pages, backlinks)
+
+
+def build_bridge(path, start_page, end_page):
+    """возвращает список страниц, по которым можно перейти по ссылкам со start_page на
+    end_page, начальная и конечная страницы включаются в результирующий список"""
+
+    backlinks = \
+        get_backlinks(path, end_page, set(os.listdir(path)), {start_page, }, dict())
+
+    current_page, bridge = end_page, [end_page]
+
+    while current_page != start_page:
+        current_page = backlinks.get(current_page)
+        bridge.append(current_page)
+
+    return bridge[::-1]
